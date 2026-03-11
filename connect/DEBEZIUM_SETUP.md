@@ -1,4 +1,3 @@
-```markdown
 # Debezium CDC Setup
 
 **How real-time changes from PostgreSQL reach your vector database.**
@@ -85,5 +84,3 @@ open http://localhost:8080
 | Delete not working         | Confirm `REPLICA IDENTITY FULL` in Postgres |
 
 Full logs and status are always available via Makefile.
-
-```
