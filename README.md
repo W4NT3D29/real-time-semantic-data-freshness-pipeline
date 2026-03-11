@@ -1,4 +1,3 @@
-```markdown
 # Real-Time Semantic Data Freshness Pipeline
 
 **Sub-second vector sync from live PostgreSQL** — a production-grade portfolio project for AI infrastructure.
@@ -14,7 +13,7 @@ flowchart LR
     B -->|Avro events| C[Redpanda + Schema Registry]
     C -->|Topic: stock_news_events| D[Python Kafka Consumer]
     D -->|Batch embeddings<br/>OpenAI / Ollama| E[Vector Sink]
-    E --> F[pgvector (local)<br/>+ Pinecone (optional)]
+    E --> F["pgvector (local)<br/>+ Pinecone (optional)"]
     G[Streamlit Dashboard] -->|Live queries + freshness timer| F
 ```
 
@@ -96,4 +95,3 @@ open http://localhost:8501
 ```
 
 Update one row in Postgres → watch the vector DB stay perfectly fresh.
-```
