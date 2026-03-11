@@ -1,0 +1,78 @@
+{
+  "type": "record",
+  "namespace": "com.pipeline.stock_news",
+  "name": "StockNewsEvent",
+  "fields": [
+    {
+      "name": "id",
+      "type": "int",
+      "doc": "Primary key from database"
+    },
+    {
+      "name": "ticker",
+      "type": "string",
+      "doc": "Stock ticker symbol (e.g., TSLA, AAPL)"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "doc": "News headline"
+    },
+    {
+      "name": "content",
+      "type": "string",
+      "doc": "Full news content to be embedded"
+    },
+    {
+      "name": "source",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "News source (e.g., Reuters, Bloomberg)"
+    },
+    {
+      "name": "published_at",
+      "type": [
+        "null",
+        "long"
+      ],
+      "default": null,
+      "doc": "Publication timestamp in milliseconds"
+    },
+    {
+      "name": "updated_at",
+      "type": [
+        "null",
+        "long"
+      ],
+      "default": null,
+      "doc": "Last update timestamp in milliseconds"
+    },
+    {
+      "name": "created_at",
+      "type": [
+        "null",
+        "long"
+      ],
+      "default": null,
+      "doc": "Creation timestamp in milliseconds"
+    },
+    {
+      "name": "version",
+      "type": "int",
+      "default": 0,
+      "doc": "Row version for deduplication"
+    },
+    {
+      "name": "op",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null,
+      "doc": "Operation type (c=create, u=update, d=delete)"
+    }
+  ]
+}

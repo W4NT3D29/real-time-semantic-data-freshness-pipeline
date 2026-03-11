@@ -1,0 +1,259 @@
+services:
+  # ==================== POSTGRES 16 ====================
+  postgres:
+    image: postgres:16-alpine
+    container_name: pipeline_postgres
+    environment:
+      POSTGRES_DB: stock_news_db
+      POSTGRES_USER: pipeline_user
+      POSTGRES_PASSWORD: pipeline_secret
+      # Enable logical replication for Debezium
+      POSTGRES_INITDB_ARGS: "-c max_wal_senders=10 -c max_replication_slots=10 -c wal_level=logical"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init_db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pipeline_user -d stock_news_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pipeline_network
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "max_replication_slots=10"
+      - "-c"
+      - "shared_preload_libraries=pgvector"
+
+  # ==================== REDPANDA (Kafka-Compatible) ====================
+  redpanda:
+    image: docker.redpanda.com/redpanda:v24.1.5
+    container_name: pipeline_redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=2
+      - --memory=512M
+      - --reserve-memory=0M
+      - --node-uuid=1
+      - --kafka-addr=PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+      - --rpc-addr=0.0.0.0:33145
+      - --advertise-rpc-addr=redpanda:33145
+      - --schema-registry-addr=0.0.0.0:8081
+    ports:
+      - "9092:9092"      # Kafka OUTSIDE
+      - "29092:29092"    # Kafka PLAINTEXT (internal)
+      - "8081:8081"      # Schema Registry
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "info"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    networks:
+      - pipeline_network
+    environment:
+      REDPANDA_ADVERTISE_URLS: redpanda:29092
+
+  # ==================== REDPANDA CONSOLE (Kafka UI) ====================
+  redpanda-console:
+    image: docker.redpanda.com/redpanda/console:v2.3.5
+    container_name: pipeline_console
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+      SCHEMA_REGISTRY_ENABLED: "true"
+      SCHEMA_REGISTRY_URLS: http://redpanda:8081
+    ports:
+      - "8080:8080"
+    networks:
+      - pipeline_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ==================== DEBEZIUM CONNECT CLUSTER ====================
+  debezium-connect-1:
+    image: debezium/connect:2.5
+    container_name: pipeline_debezium_1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    environment:
+      BOOTSTRAP_SERVERS: redpanda:29092
+      GROUP_ID: debezium-group
+      CONFIG_STORAGE_TOPIC: debezium-config
+      OFFSET_STORAGE_TOPIC: debezium-offsets
+      STATUS_STORAGE_TOPIC: debezium-status
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://redpanda:8081
+      CONNECT_PRODUCER_ACKS: all
+      CONNECT_PRODUCER_COMPRESSION_TYPE: snappy
+      CONNECT_LOG_LEVEL: INFO
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./connect:/etc/kafka/connect/jars:ro
+      - connector_logs:/var/log/kafka-connect
+    networks:
+      - pipeline_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  debezium-connect-2:
+    image: debezium/connect:2.5
+    container_name: pipeline_debezium_2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    environment:
+      BOOTSTRAP_SERVERS: redpanda:29092
+      GROUP_ID: debezium-group
+      CONFIG_STORAGE_TOPIC: debezium-config
+      OFFSET_STORAGE_TOPIC: debezium-offsets
+      STATUS_STORAGE_TOPIC: debezium-status
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://redpanda:8081
+      CONNECT_PRODUCER_ACKS: all
+      CONNECT_PRODUCER_COMPRESSION_TYPE: snappy
+      CONNECT_LOG_LEVEL: INFO
+    ports:
+      - "8084:8083"
+    volumes:
+      - ./connect:/etc/kafka/connect/jars:ro
+      - connector_logs:/var/log/kafka-connect
+    networks:
+      - pipeline_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== PYTHON KAFKA CONSUMER ====================
+  stream-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pipeline_stream_processor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      debezium-connect-1:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+      SCHEMA_REGISTRY_URL: http://redpanda:8081
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: stock_news_db
+      POSTGRES_USER: pipeline_user
+      POSTGRES_PASSWORD: pipeline_secret
+      PINECONE_API_KEY: ${PINECONE_API_KEY:-}
+      PINECONE_INDEX_NAME: stock-news
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      USE_LOCAL_EMBEDDINGS: "false"
+      LOG_LEVEL: INFO
+    volumes:
+      - ./stream_processor:/app/stream_processor
+      - ./vector_sync:/app/vector_sync
+    networks:
+      - pipeline_network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ==================== STREAMLIT DASHBOARD ====================
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: pipeline_streamlit
+    depends_on:
+      postgres:
+        condition: service_healthy
+      stream-processor:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: stock_news_db
+      POSTGRES_USER: pipeline_user
+      POSTGRES_PASSWORD: pipeline_secret
+      PINECONE_API_KEY: ${PINECONE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      USE_LOCAL_EMBEDDINGS: "false"
+      LOG_LEVEL: INFO
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./demo:/app/demo
+      - ./stream_processor:/app/stream_processor
+      - ./vector_sync:/app/vector_sync
+    networks:
+      - pipeline_network
+    restart: on-failure
+
+  # ==================== OLLAMA (Optional, with profile) ====================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: pipeline_ollama
+    profiles:
+      - "ollama"
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - pipeline_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: serve
+
+volumes:
+  postgres_data:
+  redpanda_data:
+  connector_logs:
+  ollama_data:
+
+networks:
+  pipeline_network:
+    driver: bridge

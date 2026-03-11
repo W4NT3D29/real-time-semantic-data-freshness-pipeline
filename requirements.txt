@@ -1,0 +1,16 @@
+confluent-kafka==2.4.0
+pydantic==2.6.4
+pydantic-settings==2.2.1
+psycopg2-binary==2.9.9
+openai==1.14.0
+pinecone-client==3.0.2
+requests==2.31.0
+tenacity==8.2.3
+python-json-logger==2.0.7
+streamlit==1.36.0
+plotly==5.18.0
+pandas==2.2.0
+fastavro==1.9.4
+prometheus-client==0.19.0
+ollama==0.1.32
+sentence-transformers==2.3.1

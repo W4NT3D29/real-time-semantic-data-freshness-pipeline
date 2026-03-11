@@ -1,0 +1,143 @@
+# =====================================================
+# Real-Time Semantic Data Freshness Pipeline
+# Professional .gitignore (2026 best practices)
+# =====================================================
+
+# =====================================================
+# Environment Variables & Secrets (CRITICAL)
+# =====================================================
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# API keys & credentials (extra safety)
+*.pem
+*.key
+secrets.json
+credentials.json
+pinecone.key
+
+# =====================================================
+# Python
+# =====================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# =====================================================
+# Testing & Coverage
+# =====================================================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.cache
+coverage.xml
+*.cover
+.hypothesis/
+.ruff_cache/
+.mypy_cache/
+
+# =====================================================
+# Logs & Temporary Files
+# =====================================================
+*.log
+logs/
+*.log.*
+tmp/
+temp/
+*.tmp
+*.temp
+
+# =====================================================
+# Docker & Persistent Data Volumes
+# (Never commit local DB/Kafka/Debezium state)
+# =====================================================
+postgres_data/
+redpanda_data/
+kafka_data/
+zookeeper_data/
+connect_data/
+debezium_offset_storage/
+debezium_data/
+ollama_data/
+prometheus_data/
+grafana_data/
+vector_db_data/
+data/
+
+# =====================================================
+# IDE / Editor files
+# =====================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# =====================================================
+# Streamlit
+# =====================================================
+.streamlit/secrets.toml
+
+# =====================================================
+# Docker overrides & local configs
+# =====================================================
+docker-compose.override.yml
+docker-compose.*.override.yml
+
+# =====================================================
+# Jupyter / Notebooks
+# =====================================================
+.ipynb_checkpoints/
+
+# =====================================================
+# Local ML / Embedding models (Ollama, HF cache)
+# =====================================================
+.ollama/
+ollama/
+models/
+.huggingface/
+cache/
+
+# =====================================================
+# Monitoring extras (if enabled later)
+# =====================================================
+monitoring/prometheus_data/
+monitoring/grafana_data/
+
+# =====================================================
+# End of file
+# =====================================================
