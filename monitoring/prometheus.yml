@@ -1,0 +1,46 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    job: "semantic-pipeline"
+
+rule_files:
+  - "alert.rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Stream processor (Python consumer) metrics
+  - job_name: "stream-processor"
+    static_configs:
+      - targets: ["stream-processor:9090"]
+    scrape_interval: 5s
+    scrape_timeout: 5s
+    metrics_path: "/metrics"
+
+  # Debezium Kafka Connect
+  - job_name: "debezium-connect"
+    static_configs:
+      - targets: ["debezium-connect-1:8083"]
+    scrape_interval: 10s
+    metrics_path: "/metrics"
+
+  # Kafka/Redpanda (JMX exporter)
+  - job_name: "kafka"
+    static_configs:
+      - targets: ["redpanda:9308"]
+    scrape_interval: 10s
+
+  # PostgreSQL (via postgres exporter - optional)
+  - job_name: "postgres"
+    static_configs:
+      - targets: ["postgres:5432"]
+    scrape_interval: 15s

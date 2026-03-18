@@ -127,10 +127,27 @@ health:
 
 test:
 	@echo "Running integration tests..."
-	pytest -v tests/
+	pytest -v tests/ --tb=short
 
 test-watch:
-	pytest -v tests/ -w
+	@echo "Running tests in watch mode..."
+	pytest -v tests/ --tb=short -s
+
+test-coverage:
+	@echo "Running tests with coverage..."
+	pytest -v tests/ --cov=stream_processor --cov=vector_sync --cov-report=html --cov-report=term-missing
+
+test-quick:
+	@echo "Running quick unit tests (no containers)..."
+	pytest -v tests/test_integration.py::TestConfiguration -s
+	pytest -v tests/test_integration.py::TestCDCEventParsing -s
+	pytest -v tests/test_integration.py::TestEventBatching -s
+	pytest -v tests/test_integration.py::TestErrorHandling -s
+
+test-docker:
+	@echo "Running containerized integration tests..."
+	pytest -v tests/test_integration.py::TestDatabaseSchema -s
+	pytest -v tests/test_integration.py::TestKafkaProducerConsumer -s
 
 shell-pg:
 	docker exec -it pipeline_postgres psql -U pipeline_user -d stock_news_db

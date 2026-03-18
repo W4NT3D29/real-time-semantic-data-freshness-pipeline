@@ -1,14 +1,18 @@
 """Kafka consumer for CDC events with batching, deduplication, and embedding sync."""
 
 import asyncio
+import io
 import json
 import logging
+import struct
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set
 
+import fastavro
 import psycopg2
+import requests
 from confluent_kafka import OFFSET_BEGINNING, Consumer, KafkaError, TopicPartition
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -17,6 +21,63 @@ from stream_processor.embedding_client import EmbeddingClient
 from vector_sync.handlers import PgVectorHandler, PineconeHandler, VectorRecord
 
 logger = logging.getLogger(__name__)
+
+
+class AvroDeserializer:
+    """Simple Avro deserializer for Apicurio registry format."""
+    
+    def __init__(self, schema_registry_url: str):
+        self.schema_registry_url = schema_registry_url
+        self.schema_cache: Dict[int, Any] = {}
+    
+    def deserialize(self, data: bytes) -> Optional[Dict[str, Any]]:
+        """Deserialize Avro binary data with Apicurio wire format.
+        
+        Apicurio format: [0x00] [8-byte schema ID] [avro payload]
+        """
+        if not data or len(data) < 9:
+            return None
+        
+        # Check magic byte
+        if data[0] != 0:
+            logger.warning(f"Invalid Avro magic byte: {data[0]}")
+            return None
+        
+        # Extract schema ID (big-endian 8 bytes)
+        schema_id = struct.unpack('>Q', data[1:9])[0]
+        
+        # Get schema from cache or registry
+        schema = self._get_schema(schema_id)
+        if not schema:
+            logger.error(f"Failed to fetch schema for ID: {schema_id}")
+            return None
+        
+        # Deserialize Avro payload (skip first 9 bytes: magic + schema ID)
+        try:
+            bytes_reader = io.BytesIO(data[9:])
+            return fastavro.schemaless_reader(bytes_reader, schema)
+        except Exception as e:
+            logger.error(f"Avro deserialization failed: {e}", exc_info=True)
+            return None
+    
+    def _get_schema(self, schema_id: int) -> Optional[Any]:
+        """Fetch schema from cache or registry."""
+        if schema_id in self.schema_cache:
+            return self.schema_cache[schema_id]
+        
+        try:
+            # Apicurio API: /apis/registry/v2/ids/globalIds/{globalId}
+            url = f"{self.schema_registry_url}/ids/globalIds/{schema_id}"
+            response = requests.get(url, timeout=5)
+            response.raise_for_status()
+            
+            schema_json = response.json()
+            schema = fastavro.parse_schema(schema_json)
+            self.schema_cache[schema_id] = schema
+            return schema
+        except Exception as e:
+            logger.error(f"Failed to fetch schema {schema_id}: {e}")
+            return None
 
 
 @dataclass
@@ -159,6 +220,11 @@ class KafkaConsumerLoop:
             database=config.postgres_db,
             user=config.postgres_user,
             password=config.postgres_password,
+        )
+
+        # Avro deserializer for Apicurio registry
+        self.avro_deserializer = AvroDeserializer(
+            schema_registry_url=config.schema_registry_url.rstrip('/') + '/apis/registry/v2'
         )
 
         # Event batching
@@ -333,9 +399,14 @@ class KafkaConsumerLoop:
                         logger.error(f"Kafka error: {msg.error()}")
                     continue
 
-                # Parse CDC event
+                # Parse CDC event (Avro format)
                 try:
-                    kafka_msg = json.loads(msg.value().decode("utf-8"))
+                    # Deserialize Avro binary
+                    kafka_msg = self.avro_deserializer.deserialize(msg.value())
+                    if kafka_msg is None:
+                        logger.warning("Failed to deserialize Avro message")
+                        continue
+                    
                     event = CDCEvent.from_kafka_message(
                         kafka_msg,
                         offset=msg.offset(),

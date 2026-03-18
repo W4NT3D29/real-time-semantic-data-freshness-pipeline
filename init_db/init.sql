@@ -1,6 +1,8 @@
--- Enable pgvector extension
-CREATE EXTENSION IF NOT EXISTS pgvector;
-CREATE EXTENSION IF NOT EXISTS uuid-ossp;
+-- Enable extensions
+-- Note: pgvector and uuid-ossp require custom-compiled PostgreSQL image
+-- For Alpine images, we skip these extensions
+-- CREATE EXTENSION IF NOT EXISTS pgvector;
+-- CREATE EXTENSION IF NOT EXISTS uuid-ossp;
 
 -- Create stock_news table
 CREATE TABLE IF NOT EXISTS stock_news (
@@ -24,8 +26,10 @@ CREATE INDEX idx_stock_news_published_at ON stock_news(published_at DESC);
 CREATE INDEX idx_stock_news_updated_at ON stock_news(updated_at DESC);
 
 -- Add pgvector column for embeddings (optional backup)
-ALTER TABLE stock_news ADD COLUMN IF NOT EXISTS embedding vector(1536);
-CREATE INDEX IF NOT EXISTS idx_stock_news_embedding ON stock_news USING ivfflat (embedding vector_cosine_ops);
+-- Commented out: pgvector not available in Alpine PostgreSQL
+-- Uncomment these lines if using a pgvector-enabled PostgreSQL image
+-- ALTER TABLE stock_news ADD COLUMN IF NOT EXISTS embedding vector(1536);
+-- CREATE INDEX IF NOT EXISTS idx_stock_news_embedding ON stock_news USING ivfflat (embedding vector_cosine_ops);
 
 -- Enable logical replication for Debezium
 ALTER TABLE stock_news REPLICA IDENTITY FULL;

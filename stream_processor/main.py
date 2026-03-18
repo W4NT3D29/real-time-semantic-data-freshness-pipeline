@@ -4,6 +4,7 @@ import asyncio
 import logging
 import signal
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Optional
 
@@ -86,9 +87,21 @@ class StreamProcessor:
                 return FallbackEmbeddingClient(primary=primary, fallback=fallback)
 
     def _start_health_server(self) -> None:
-        """Start health check HTTP server."""
+        """Start health check HTTP server in separate daemon thread."""
         try:
-            self.health_server = HTTPServer(("0.0.0.0", self.config.prometheus_port), HealthCheckHandler)
+            self.health_server = HTTPServer(
+                ("0.0.0.0", self.config.prometheus_port), 
+                HealthCheckHandler
+            )
+            
+            # Run in daemon thread so it doesn't block main async loop
+            health_thread = threading.Thread(
+                target=self.health_server.serve_forever,
+                daemon=True,
+                name="health-check-server"
+            )
+            health_thread.start()
+            
             logger.info(f"Health check server started on port {self.config.prometheus_port}")
         except Exception as e:
             logger.warning(f"Failed to start health server: {e}")

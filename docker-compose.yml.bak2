@@ -77,26 +77,10 @@ services:
     networks:
       - pipeline_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
       interval: 10s
       timeout: 5s
       retries: 3
-
-  # ==================== APICURIO REGISTRY ====================
-  apicurio:
-    image: apicurio/apicurio-registry-mem:2.4.1.Final
-    container_name: pipeline_apicurio
-    ports:
-      - "8888:8080"
-    environment:
-      QUARKUS_PROFILE: prod
-    networks:
-      - pipeline_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   # ==================== DEBEZIUM CONNECT CLUSTER ====================
   debezium-connect-1:
@@ -117,7 +101,7 @@ services:
       OFFSET_STORAGE_REPLICATION_FACTOR: 1
       STATUS_STORAGE_REPLICATION_FACTOR: 1
       ENABLE_APICURIO_CONVERTERS: "true"
-      CONNECT_PLUGIN_PATH: /kafka/connect,/kafka/external_libs
+      KAFKA_CONNECT_PLUGIN_PATH: /kafka/connect,/kafka/external_libs
       CONNECT_PRODUCER_ACKS: all
       CONNECT_PRODUCER_COMPRESSION_TYPE: snappy
       CONNECT_LOG_LEVEL: INFO
@@ -152,7 +136,7 @@ services:
       OFFSET_STORAGE_REPLICATION_FACTOR: 1
       STATUS_STORAGE_REPLICATION_FACTOR: 1
       ENABLE_APICURIO_CONVERTERS: "true"
-      CONNECT_PLUGIN_PATH: /kafka/connect,/kafka/external_libs
+      KAFKA_CONNECT_PLUGIN_PATH: /kafka/connect,/kafka/external_libs
       CONNECT_PRODUCER_ACKS: all
       CONNECT_PRODUCER_COMPRESSION_TYPE: snappy
       CONNECT_LOG_LEVEL: INFO
@@ -182,14 +166,9 @@ services:
         condition: service_healthy
       debezium-connect-1:
         condition: service_healthy
-      apicurio:
-        condition: service_healthy
-      ollama:
-        condition: service_healthy
     environment:
       KAFKA_BROKERS: redpanda:29092
-      SCHEMA_REGISTRY_URL: http://apicurio:8080
-      KAFKA_TOPIC: stock_news
+      SCHEMA_REGISTRY_URL: http://redpanda:8081
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: stock_news_db
@@ -243,10 +222,12 @@ services:
       - pipeline_network
     restart: on-failure
 
-  # ==================== OLLAMA (Zero-Cost Local Embeddings) ====================
+  # ==================== OLLAMA (Optional, with profile) ====================
   ollama:
     image: ollama/ollama:latest
     container_name: pipeline_ollama
+    profiles:
+      - "ollama"
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
     ports:

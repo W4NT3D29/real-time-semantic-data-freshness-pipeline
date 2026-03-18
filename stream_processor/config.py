@@ -41,7 +41,7 @@ class Config(BaseSettings):
     # Local Embeddings (Ollama)
     use_local_embeddings: bool = Field(default=False, alias="USE_LOCAL_EMBEDDINGS")
     ollama_api_url: str = Field(default="http://ollama:11434", alias="OLLAMA_API_URL")
-    ollama_model: str = Field(default="nomic-embed-text", alias="OLLAMA_MODEL")
+    ollama_model: str = Field(default="aroxima/gte-qwen2-1.5b-instruct:q4_k_m", alias="OLLAMA_MODEL")
 
     # Application
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")

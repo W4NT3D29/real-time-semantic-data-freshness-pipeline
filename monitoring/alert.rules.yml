@@ -1,0 +1,83 @@
+groups:
+  - name: "semantic-pipeline"
+    interval: 30s
+    rules:
+      # Consumer lag alert
+      - alert: HighKafkaConsumerLag
+        expr: kafka_consumer_lag_sum > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Kafka consumer lag detected"
+          description: "Consumer lag is {{ $value }} (threshold: 1000)"
+
+      # Embedding latency alert
+      - alert: HighEmbeddingLatency
+        expr: histogram_quantile(0.95, embedding_latency_seconds) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High embedding latency detected"
+          description: "P95 latency is {{ $value }}s (threshold: 2s)"
+
+      # Processing errors alert
+      - alert: HighProcessingErrorRate
+        expr: rate(processing_errors_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High processing error rate"
+          description: "Error rate is {{ $value }}/sec"
+
+      # Consumer not processing
+      - alert: ConsumerNotProcessing
+        expr: rate(events_processed_total[5m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Consumer appears to be stuck"
+          description: "No events processed in the last 5 minutes"
+
+      # Debezium connector down
+      - alert: DebeziumConnectorDown
+        expr: up{job="debezium-connect"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Debezium connector is down"
+          description: "Debezium connector {{ $labels.instance }} is not responding"
+
+      # PostgreSQL replication lag
+      - alert: PostgresReplicationLag
+        expr: pg_replication_lag_seconds > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL replication lag detected"
+          description: "Replication lag is {{ $value }}s"
+
+      # Pinecone API errors
+      - alert: PineconeAPIErrors
+        expr: rate(pinecone_api_errors_total[5m]) > 0.001
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pinecone API errors detected"
+          description: "Error rate is {{ $value }}/sec"
+
+      # Out of memory
+      - alert: ProcessMemoryHigh
+        expr: process_resident_memory_bytes > 2e9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Process memory usage is high"
+          description: "Memory usage is {{ $value | humanize }}B"
